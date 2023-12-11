@@ -17,7 +17,7 @@ rostopic echo /internet_speed
 rosservice call /internet_speed_node/run_speed_test "{}"
 ```
 
-# internet_speedh_node
+# internet_speed_node
 ### Published Topics
 
 ```
