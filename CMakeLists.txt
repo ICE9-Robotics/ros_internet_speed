@@ -8,8 +8,6 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
-# catkin_python_setup()
-
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
