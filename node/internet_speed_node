@@ -4,6 +4,7 @@ import threading
 import rospy
 from std_srvs.srv import Trigger
 from ros_internet_speed.msg import InternetSpeedReport
+from ros_internet_speed.srv import GetReport
 
 from speedtest import Speedtest
 
@@ -14,55 +15,63 @@ class InternetSpeedNode:
     def __init__(self):
         rospy.init_node("internet_speed_node")
         self.thread = None
-        self.srv = rospy.Service("/internet_speed_node/run_speed_test", Trigger, self.speedtest_srv_callback)
+        self.run_test_srv = rospy.Service("/internet_speed_node/run_speed_test", Trigger, self.run_speed_test_srv_callback)
+        self.get_report_srv = rospy.Service("/internet_speed_node/get_report", Trigger, self.get_report_srv_callback)
         self.pub = rospy.Publisher("internet_speed", InternetSpeedReport, queue_size=1)
         info("ROS Internet Speed Node is ready")
+
+        self.msg = None
         rospy.spin()
 
     def test_speed(self):
-        msg = InternetSpeedReport()
-        msg.header.stamp = rospy.Time.now()
-        msg.status_description = "Getting test server"
-        msg.status = 0
-        self.pub.publish(msg)
+        self.msg = InternetSpeedReport()
+        self.msg.header.stamp = rospy.Time.now()
+        self.msg.status_description = "Getting test server"
+        self.msg.status = 0
+        self.pub.publish(self.msg)
         info("Running internet speed test")
 
         speedtest = Speedtest()
         speedtest.get_best_server()
-        msg.server = speedtest.results.server["sponsor"] + ", " + speedtest.results.server["name"]
-        msg.client = speedtest.results.client["ip"]
-        msg.timestamp = speedtest.results.timestamp
-        msg.ping = speedtest.results.ping
-        msg.status_description = "Testing download speed"
-        msg.status = 1
-        self.pub.publish(msg)
-        info("Test server: " + msg.server)
-        info("Ping: {:.1f} ms".format(msg.ping))
+        self.msg.server = speedtest.results.server["sponsor"] + ", " + speedtest.results.server["name"]
+        self.msg.client = speedtest.results.client["ip"]
+        self.msg.timestamp = speedtest.results.timestamp
+        self.msg.ping = speedtest.results.ping
+        self.msg.status_description = "Testing download speed"
+        self.msg.status = 1
+        self.pub.publish(self.msg)
+        info("Test server: " + self.msg.server)
+        info("Ping: {:.1f} ms".format(self.msg.ping))
 
         speedtest.download()
-        msg.download_speed = speedtest.results.download
-        msg.bytes_received = speedtest.results.bytes_received
-        msg.status_description = "Testing upload speed"
-        msg.status = 2
-        self.pub.publish(msg)
-        info("Download speed: {:.3f} Mbps".format(msg.download_speed/1000000))
+        self.msg.download_speed = speedtest.results.download
+        self.msg.bytes_received = speedtest.results.bytes_received
+        self.msg.status_description = "Testing upload speed"
+        self.msg.status = 2
+        self.pub.publish(self.msg)
+        info("Download speed: {:.3f} Mbps".format(self.msg.download_speed/1000000))
 
         speedtest.upload()
-        msg.upload_speed = speedtest.results.upload
-        msg.bytes_sent = speedtest.results.bytes_sent
-        msg.status_description = "Test completed"
-        msg.status = 3
-        self.pub.publish(msg)
-        info("Upload speed: {:.3f} Mbps".format(msg.upload_speed/1000000))
+        self.msg.upload_speed = speedtest.results.upload
+        self.msg.bytes_sent = speedtest.results.bytes_sent
+        self.msg.status_description = "Test completed"
+        self.msg.status = 3
+        self.pub.publish(self.msg)
+        info("Upload speed: {:.3f} Mbps".format(self.msg.upload_speed/1000000))
         info("Test completed")
 
-    def speedtest_srv_callback(self, req):
+    def run_speed_test_srv_callback(self, req):
         if self.thread is not None and self.thread.is_alive():
             warn("Speed test is already running")
             return {"success": False, "message": "Speed test is already running"}
         self.thread = threading.Thread(target=self.test_speed)
         self.thread.start()
         return {"success": True, "message": "Internet peed test started"}
+    
+    def get_report_srv_callback(self, req):
+        if self.msg is None:
+            return {"success": False, "message": "Speed test has not run yet"}
+        return {"success": True, "message": str(self.msg)}
 
 
 def main():
