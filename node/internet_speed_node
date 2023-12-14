@@ -6,7 +6,7 @@ from std_srvs.srv import Trigger
 from ros_internet_speed.msg import InternetSpeedReport
 from ros_internet_speed.srv import GetReport
 
-from speedtest import Speedtest
+from speedtest import Speedtest, ConfigRetrievalError
 
 info = rospy.loginfo
 warn = rospy.logwarn
@@ -31,34 +31,47 @@ class InternetSpeedNode:
         self.pub.publish(self.msg)
         info("Running internet speed test")
 
-        speedtest = Speedtest()
-        speedtest.get_best_server()
-        self.msg.server = speedtest.results.server["sponsor"] + ", " + speedtest.results.server["name"]
-        self.msg.client = speedtest.results.client["ip"]
-        self.msg.timestamp = speedtest.results.timestamp
-        self.msg.ping = speedtest.results.ping
-        self.msg.status_description = "Testing download speed"
-        self.msg.status = 1
-        self.pub.publish(self.msg)
-        info("Test server: " + self.msg.server)
-        info("Ping: {:.1f} ms".format(self.msg.ping))
+        try:
+            speedtest = Speedtest()
+            speedtest.get_best_server()
+            self.msg.server = speedtest.results.server["sponsor"] + ", " + speedtest.results.server["name"]
+            self.msg.client = speedtest.results.client["ip"]
+            self.msg.timestamp = speedtest.results.timestamp
+            self.msg.ping = speedtest.results.ping
+            self.msg.status_description = "Testing download speed"
+            self.msg.status = 1
+            self.pub.publish(self.msg)
+            info("Test server: " + self.msg.server)
+            info("Ping: {:.1f} ms".format(self.msg.ping))
 
-        speedtest.download()
-        self.msg.download_speed = speedtest.results.download
-        self.msg.bytes_received = speedtest.results.bytes_received
-        self.msg.status_description = "Testing upload speed"
-        self.msg.status = 2
-        self.pub.publish(self.msg)
-        info("Download speed: {:.3f} Mbps".format(self.msg.download_speed/1000000))
+            speedtest.download()
+            self.msg.download_speed = speedtest.results.download
+            self.msg.bytes_received = speedtest.results.bytes_received
+            self.msg.status_description = "Testing upload speed"
+            self.msg.status = 2
+            self.pub.publish(self.msg)
+            info("Download speed: {:.3f} Mbps".format(self.msg.download_speed/1000000))
 
-        speedtest.upload()
-        self.msg.upload_speed = speedtest.results.upload
-        self.msg.bytes_sent = speedtest.results.bytes_sent
-        self.msg.status_description = "Test completed"
-        self.msg.status = 3
-        self.pub.publish(self.msg)
-        info("Upload speed: {:.3f} Mbps".format(self.msg.upload_speed/1000000))
-        info("Test completed")
+            speedtest.upload()
+            self.msg.upload_speed = speedtest.results.upload
+            self.msg.bytes_sent = speedtest.results.bytes_sent
+            self.msg.status_description = "Test completed"
+            self.msg.status = 3
+            self.pub.publish(self.msg)
+            info("Upload speed: {:.3f} Mbps".format(self.msg.upload_speed/1000000))
+            info("Test completed")
+        except ConfigRetrievalError as e:
+            # No connection to the server or server refused
+            self.msg.status_description = e
+            self.msg.status = 0
+            self.pub.publish(self.msg)
+            warn("Test failed, no connection to the server or server refused: " + str(e))
+        except Exception as e:
+            # Unexpected errors
+            self.msg.status_description = e
+            self.msg.status = -1
+            self.pub.publish(self.msg)
+            warn("Test failed, unexpected error: " + str(e))
 
     def run_speed_test_srv_callback(self, req):
         if self.thread is not None and self.thread.is_alive():
