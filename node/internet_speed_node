@@ -63,13 +63,13 @@ class InternetSpeedNode:
         except ConfigRetrievalError as e:
             # No connection to the server or server refused
             self.msg.status_description = e
-            self.msg.status = 0
+            self.msg.status = -1
             self.pub.publish(self.msg)
             warn("Test failed, no connection to the server or server refused: " + str(e))
         except Exception as e:
             # Unexpected errors
             self.msg.status_description = e
-            self.msg.status = -1
+            self.msg.status = -2
             self.pub.publish(self.msg)
             warn("Test failed, unexpected error: " + str(e))
 
